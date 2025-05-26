@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import openai
@@ -8,6 +7,7 @@ import json
 import re
 from datetime import datetime
 from google.cloud import texttospeech
+import stripe
 
 app = Flask(__name__)
 CORS(app)
@@ -15,6 +15,9 @@ CORS(app)
 client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "lumina-voice-ai.json"
 tts_client = texttospeech.TextToSpeechClient()
+
+# Stripe API setup
+stripe.api_key = "sk_test_YOUR_SECRET_KEY"  # Replace with your real secret key
 
 MEMORY_FILE = "memory.json"
 user_sessions = {}
@@ -67,6 +70,33 @@ def detect_funnel_trigger(text):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+@app.route("/academy")
+def academy():
+    return render_template("academy.html")
+
+@app.route("/create-checkout-session", methods=["POST"])
+def create_checkout_session():
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': 'Lumina Academy Access',
+                    },
+                    'unit_amount': 49700,  # $497 in cents
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url='https://yourdomain.com/academy.html?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url='https://yourdomain.com/index.html',
+        )
+        return jsonify({'id': session.id})
+    except Exception as e:
+        return jsonify(error=str(e)), 403
 
 @app.route("/ask", methods=["POST"])
 def ask():
